@@ -84,7 +84,7 @@ file(GLOB_RECURSE SOURCES "*.cpp")
 add_executable(acardov ${SOURCES})
 
 # Set C++11
-add_definitions(-std=c++11)
+add_definitions(-std=c++11 -g)
 
 # Link libraries
 if(UNIX AND NOT APPLE)
