@@ -96,9 +96,6 @@ void Visualizer::run(int argc, char* argv[]) {
 
         // perform post-drawing operations (post processing)
         this->post_draw();
-
-        // stop drawing here
-        Display::get().close_frame();  /* close the frame */
     }
 }
 
@@ -255,6 +252,5 @@ void Visualizer::post_draw() {
     glEnable(GL_BLEND);
     glViewport(0, 0, Screen::get().get_width(), Screen::get().get_height());
     PostProcessor::get().draw();
-
     Display::get().close_frame();
 }
