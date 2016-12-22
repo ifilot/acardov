@@ -181,24 +181,32 @@ void Geometry::subdivide() {
     std::vector<std::unique_ptr<Face> > new_faces;
     std::vector<std::unique_ptr<HalfEdge> > new_edges;
 
-    std::map<std::pair<unsigned int, unsigned int>, HalfEdge*> splitted_edges;
+    std::map<std::pair<Vertex*, Vertex*>, Vertex*> splitted_edges;
     std::map<std::pair<size_t, size_t>, HalfEdge*> temp_edges;
 
     // loop over all vertices
-    for(auto&& vert: vertices) {
+    for(auto&& vert1: vertices) {
         // create new vertex pointer
-        Vertex* current_vertex = new Vertex(vert->get_pos());
+        Vertex* current_vertex = new Vertex(vert1->get_pos());
         new_vertices.emplace_back(current_vertex);
         const unsigned int id1 = new_vertices.size();
 
         // loop over all edges
-        HalfEdge* edge = vert->get_edge();
+        HalfEdge* edge = vert1->get_edge();
         Vertex* prev_vertex = NULL;
         do {
             // get opposite vector
             auto vert2 = edge->get_vertex();
 
-            // create a new vertex at the intersection of these two vertices
+            // split the edge if it does not exist already
+            Vertex* center_vertex;
+            auto it = splitted_edges.find(std::pair<Vertex*, Vertex*>(vert1.get(), vert2));
+            if(it == splitted_edges.end()) {
+                center_vertex = new Vertex(glm::normalize((vert1->get_pos() + vert2->get_pos()) / 2.0f));
+            } else {
+                center_vertex = it->second;
+            }
+
             //center_vertex = new Vertex(glm::normalize((current_vertex->get_pos() + vert2->get_pos()) / 2.0f));
             //prev_vertex = vertex;
 
@@ -208,6 +216,6 @@ void Geometry::subdivide() {
             }
 
             edge = edge->get_pair()->get_next();
-        } while(edge != vert->get_edge());
+        } while(edge != vert1->get_edge());
     }
 }
