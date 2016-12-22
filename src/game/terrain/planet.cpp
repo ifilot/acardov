@@ -1,5 +1,5 @@
 /**************************************************************************
- *   camera.cpp  --  This file is part of Acardov.                        *
+ *   planet.cpp  --  This file is part of Acardov.                        *
  *                                                                        *
  *   Copyright (C) 2016, Ivo Filot                                        *
  *                                                                        *
@@ -18,48 +18,37 @@
  *                                                                        *
  **************************************************************************/
 
-#include "camera.h"
+#include "planet.h"
 
-/**
- * @brief       update the camera perspective matrix
- *
- * @return      void
- */
-void Camera::update() {
-    this->projection = glm::ortho(-10.0f * this->aspect_ratio, 10.0f * this->aspect_ratio, -10.0f, 10.0f, -300.0f, 300.0f);
-    this->view = glm::lookAt(
-                    glm::vec3(this->position, 1.0),              // cam pos
-                    glm::vec3(this->position, 0.0),              // look at
-                    glm::vec3(0,1,0)               // up
-                );
+Planet::Planet() {
+    this->geometry = std::unique_ptr<Geometry>(new Geometry());
+    this->load_shader();
 }
 
-/**
- * @brief       translate the camera in the clock-wise direction
- *
- * @return      void
- */
-void Camera::translate(const glm::vec3& trans) {
-    this->update();
+void Planet::draw() {
+    this->shader->link_shader();
+
+    const glm::mat4 mvp = Camera::get().get_projection() * glm::rotate(angle, glm::vec3(0,1,0)) * glm::scale(glm::vec3(5,5,5));
+    this->shader->set_uniform("mvp", &mvp[0][0]);
+
+    this->geometry->draw();
+
+    this->shader->unlink_shader();
 }
 
-/**
- * @brief      set camera position and up direction
- *
- * @param      camera position
- * @param      up direction
- * @return     void
- */
-void Camera::set_camera_position(const glm::vec3& _position, const glm::vec3& _up) {
-    this->update();
+void Planet::update(double dt) {
+    angle += dt * 0.5;
 }
 
-/**
- * @brief       camera constructor
- *
- * @return      camera instance
- */
-Camera::Camera() {
-    this->position = glm::vec2(0.0f, 0.0f);
-    this->update();
+void Planet::load_shader() {
+    this->shader = std::unique_ptr<Shader>(new Shader("assets/shaders/planet"));
+
+    this->shader->add_attribute(ShaderAttribute::POSITION, "position");
+    this->shader->add_attribute(ShaderAttribute::NORMAL, "normal");
+    this->shader->add_attribute(ShaderAttribute::COLOR, "color");
+    this->shader->add_uniform(ShaderUniform::MAT4, "mvp", 1);
+
+    glBindVertexArray(this->geometry->get_vao());
+    this->shader->bind_uniforms_and_attributes();
+    glBindVertexArray(0);
 }

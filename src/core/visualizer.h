@@ -30,6 +30,7 @@
 #include "core/font_writer.h"
 #include "core/light.h"
 #include "core/post_processor.h"
+#include "game/terrain/planet.h"
 
 /**
  * @class Visualizer class

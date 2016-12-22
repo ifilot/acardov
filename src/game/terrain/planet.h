@@ -1,5 +1,5 @@
 /**************************************************************************
- *   camera.cpp  --  This file is part of Acardov.                        *
+ *   planet.h  --  This file is part of Acardov.                          *
  *                                                                        *
  *   Copyright (C) 2016, Ivo Filot                                        *
  *                                                                        *
@@ -18,48 +18,48 @@
  *                                                                        *
  **************************************************************************/
 
-#include "camera.h"
+#ifndef _PLANET_H
+#define _PLANET_H
 
-/**
- * @brief       update the camera perspective matrix
- *
- * @return      void
- */
-void Camera::update() {
-    this->projection = glm::ortho(-10.0f * this->aspect_ratio, 10.0f * this->aspect_ratio, -10.0f, 10.0f, -300.0f, 300.0f);
-    this->view = glm::lookAt(
-                    glm::vec3(this->position, 1.0),              // cam pos
-                    glm::vec3(this->position, 0.0),              // look at
-                    glm::vec3(0,1,0)               // up
-                );
-}
+#include <algorithm>
+#include <vector>
+#include <memory>
+#include <GL/glew.h>
+#include <GLFW/glfw3.h>
+#include <glm/glm.hpp>
 
-/**
- * @brief       translate the camera in the clock-wise direction
- *
- * @return      void
- */
-void Camera::translate(const glm::vec3& trans) {
-    this->update();
-}
+#include "core/shader.h"
+#include "core/camera.h"
+#include "game/terrain/geometry.h"
 
-/**
- * @brief      set camera position and up direction
- *
- * @param      camera position
- * @param      up direction
- * @return     void
- */
-void Camera::set_camera_position(const glm::vec3& _position, const glm::vec3& _up) {
-    this->update();
-}
+class Planet {
+private:
+    std::unique_ptr<Shader> shader;
+    float angle;
+    std::unique_ptr<Geometry> geometry;
 
-/**
- * @brief       camera constructor
- *
- * @return      camera instance
- */
-Camera::Camera() {
-    this->position = glm::vec2(0.0f, 0.0f);
-    this->update();
-}
+public:
+    /**
+     * @brief       get a reference to the camera object
+     *
+     * @return      reference to the camera object (singleton pattern)
+     */
+    static Planet& get() {
+        static Planet planet_instance;
+        return planet_instance;
+    }
+
+    void draw();
+
+    void update(double dt);
+
+private:
+    Planet();
+
+    void load_shader();
+
+    Planet(Planet const&)          = delete;
+    void operator=(Planet const&)  = delete;
+};
+
+#endif //_PLANET_H

@@ -1,5 +1,5 @@
 /**************************************************************************
- *   camera.cpp  --  This file is part of Acardov.                        *
+ *   geometry.h  --  This file is part of Acardov.                        *
  *                                                                        *
  *   Copyright (C) 2016, Ivo Filot                                        *
  *                                                                        *
@@ -18,48 +18,61 @@
  *                                                                        *
  **************************************************************************/
 
-#include "camera.h"
+#ifndef _VERTEX_H
+#define _VERTEX_H
 
-/**
- * @brief       update the camera perspective matrix
- *
- * @return      void
- */
-void Camera::update() {
-    this->projection = glm::ortho(-10.0f * this->aspect_ratio, 10.0f * this->aspect_ratio, -10.0f, 10.0f, -300.0f, 300.0f);
-    this->view = glm::lookAt(
-                    glm::vec3(this->position, 1.0),              // cam pos
-                    glm::vec3(this->position, 0.0),              // look at
-                    glm::vec3(0,1,0)               // up
-                );
-}
+#include <vector>
+#include <glm/glm.hpp>
+#include <GL/glew.h>
+#include <GLFW/glfw3.h>
+#include <boost/random/mersenne_twister.hpp>
+#include <boost/random/uniform_real_distribution.hpp>
 
-/**
- * @brief       translate the camera in the clock-wise direction
- *
- * @return      void
- */
-void Camera::translate(const glm::vec3& trans) {
-    this->update();
-}
+class Triangle; // forward declaration
 
-/**
- * @brief      set camera position and up direction
- *
- * @param      camera position
- * @param      up direction
- * @return     void
- */
-void Camera::set_camera_position(const glm::vec3& _position, const glm::vec3& _up) {
-    this->update();
-}
+class Vertex {
+private:
+    std::vector<Triangle*> triangles;
+    glm::vec3 pos;
 
-/**
- * @brief       camera constructor
- *
- * @return      camera instance
- */
-Camera::Camera() {
-    this->position = glm::vec2(0.0f, 0.0f);
-    this->update();
-}
+public:
+    Vertex(const glm::vec3& _pos);
+
+private:
+};
+
+class Triangle {
+private:
+    const Triangle* neighbours[3];
+    const Vertex* vertices[3];
+
+public:
+    Triangle(Vertex* v1, Vertex* v2, Vertex* v3);
+
+    inline const Vertex* get_vertex_ptr(unsigned int id) const {
+        return this->vertices[id];
+    }
+
+private:
+};
+
+class Geometry {
+private:
+    GLuint vao;
+    GLuint vbo[4];
+    unsigned int nr_vertices;
+
+public:
+    Geometry();
+
+    void draw();
+
+    inline GLuint get_vao() const {
+        return this->vao;
+    }
+
+private:
+    void load_sphere_coordinates(unsigned int tesselation_level);
+};
+
+#endif //_VERTEX_H
