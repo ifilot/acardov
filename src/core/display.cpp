@@ -48,15 +48,18 @@ Display::Display() {
     int major, minor, rev;
     glfwGetVersion(&major, &minor, &rev);
 
-    //
+    // set screen resolution
+    Screen::get().set_resolution_x(Settings::get().get_uint_from_keyword("settings.screen.resolution_x"));
+    Screen::get().set_resolution_y(Settings::get().get_uint_from_keyword("settings.screen.resolution_y"));
+
     if(Settings::get().get_boolean_from_keyword("settings.screen.full_screen")) {
         const unsigned int width = Settings::get().get_uint_from_keyword("settings.screen.resolution_x");
         const unsigned int height = Settings::get().get_uint_from_keyword("settings.screen.resolution_y");
-        this->m_window = glfwCreateWindow(width, height, "Netris" , NULL, NULL);
+        this->m_window = glfwCreateWindow(width, height, "Acardov" , NULL, NULL);
     } else {
         GLFWmonitor* monitor = glfwGetPrimaryMonitor();
         const GLFWvidmode* mode = glfwGetVideoMode(monitor);
-        this->m_window = glfwCreateWindow(mode->width, mode->height, "Netris" , monitor, NULL);
+        this->m_window = glfwCreateWindow(mode->width, mode->height, "Acardov" , monitor, NULL);
     }
 
     glViewport(0, 0, Screen::get().get_resolution_x(), Screen::get().get_resolution_y());

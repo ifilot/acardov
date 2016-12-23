@@ -174,6 +174,7 @@ private:
         boost::filesystem::path p(
             boost::filesystem::canonical(
                 path, boost::filesystem::current_path(), ec));
+        delete buf;
         return p.make_preferred().string();
     }
 

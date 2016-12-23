@@ -32,6 +32,9 @@
 #include <boost/random/mersenne_twister.hpp>
 #include <boost/random/uniform_real_distribution.hpp>
 
+#define GLM_FORCE_RADIANS
+#include <glm/gtx/string_cast.hpp>
+
 class HalfEdge; // forward declaration
 
 class Face {
@@ -45,6 +48,10 @@ public:
         return this->edge;
     }
 
+    inline void set_edge(HalfEdge* _edge) {
+        this->edge = _edge;
+    }
+
 private:
 };
 
@@ -52,6 +59,7 @@ class Vertex {
 private:
     glm::vec3 pos;
     HalfEdge* edge;
+    bool flag_new;
 
 public:
     Vertex(const glm::vec3& _pos);
@@ -68,6 +76,18 @@ public:
         return this->pos;
     }
 
+    inline void reset_new() {
+        this->flag_new = false;
+    }
+
+    inline void set_new() {
+        this->flag_new = true;
+    }
+
+    inline bool is_new() const {
+        return this->flag_new;
+    }
+
 private:
 };
 
@@ -77,6 +97,8 @@ private:
     HalfEdge* pair;
     Face* face;
     HalfEdge* next;
+    bool flag_has_splitted;
+    bool flag_new;
 
 public:
     HalfEdge(Vertex* _vertex);
@@ -96,6 +118,10 @@ public:
         return this;
     }
 
+    inline void set_vertex(Vertex* _vertex) {
+        this->vertex = _vertex;
+    }
+
     inline Vertex* get_vertex() {
         return this->vertex;
     }
@@ -112,6 +138,30 @@ public:
         return this->next;
     }
 
+    inline bool has_splitted() const {
+        return this->flag_has_splitted;
+    }
+
+    inline void set_splitted() {
+        this->flag_has_splitted = true;
+    }
+
+    inline void reset_splitted() {
+        this->flag_has_splitted = false;
+    }
+
+    inline void reset_new() {
+        this->flag_new = false;
+    }
+
+    inline void set_new() {
+        this->flag_new = true;
+    }
+
+    inline bool is_new() const {
+        return this->flag_new;
+    }
+
 private:
 };
 
@@ -126,7 +176,7 @@ private:
     std::vector<std::unique_ptr<HalfEdge> > edges;
 
 public:
-    Geometry();
+    Geometry(unsigned int nr_subdivisions);
 
     void draw();
 
@@ -134,14 +184,24 @@ public:
         return this->vao;
     }
 
+    ~Geometry();
+
 private:
     void generate_icosahedron();
+
+    void generate_square();
+
+    void generate_tetra_triangle();
 
     void subdivide();
 
     void add_face(HalfEdge* _edge);
 
     void load_vertices_gpu();
+
+    void flip_edge(HalfEdge* edge);
+
+    void split_edge(HalfEdge* edge);
 };
 
 #endif //_VERTEX_H

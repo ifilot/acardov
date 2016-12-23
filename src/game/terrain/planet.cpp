@@ -21,7 +21,7 @@
 #include "planet.h"
 
 Planet::Planet() {
-    this->geometry = std::unique_ptr<Geometry>(new Geometry());
+    this->geometry = std::unique_ptr<Geometry>(new Geometry(5));
     this->load_shader();
 }
 

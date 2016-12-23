@@ -26,15 +26,197 @@ Face::Face(HalfEdge* _edge) {
 
 Vertex::Vertex(const glm::vec3& _pos) {
     this->pos = _pos;
+    this->flag_new = false;
 }
 
 HalfEdge::HalfEdge(Vertex* _vertex) {
     this->vertex = _vertex;
+
+    this->pair = NULL;
+    this->next = NULL;
+    this->face = NULL;
+    this->flag_has_splitted = false;
+    this->flag_new = false;
 }
 
-Geometry::Geometry() {
+Geometry::Geometry(unsigned int nr_subdivisions) {
     this->generate_icosahedron();
+    for(unsigned int i=0; i<nr_subdivisions; i++) {
+        this->subdivide();
+    }
     this->load_vertices_gpu();
+}
+
+void Geometry::generate_square() {
+    /****************#
+    #                #
+    #   a---------d  #
+    #   |\        |  #
+    #   | \       |  #
+    #   |  \   B  |  #
+    #   |   \     |  #
+    #   |    \    |  #
+    #   |     \   |  #
+    #   |  A   \  |  #
+    #   |       \ |  #
+    #   |        \|  #
+    #   b---------c  #
+    #                #
+    *****************/
+
+    // create vertices
+    Vertex* a = new Vertex(glm::vec3(-1,1,0));
+    Vertex* b = new Vertex(glm::vec3(-1,-1,0));
+    Vertex* c = new Vertex(glm::vec3(1,-1,0));
+    Vertex* d = new Vertex(glm::vec3(1,1,0));
+
+    // create half edges
+    HalfEdge* ab = new HalfEdge(a);
+    HalfEdge* ba = new HalfEdge(b);
+    HalfEdge* bc = new HalfEdge(b);
+    HalfEdge* cb = new HalfEdge(c);
+    HalfEdge* cd = new HalfEdge(c);
+    HalfEdge* dc = new HalfEdge(d);
+    HalfEdge* da = new HalfEdge(d);
+    HalfEdge* ad = new HalfEdge(a);
+    HalfEdge* ac = new HalfEdge(a);
+    HalfEdge* ca = new HalfEdge(c);
+
+    // create faces
+    Face* A = new Face(ca);
+    Face* B = new Face(ac);
+
+    // connect pointers
+    ab->set_next(bc)->set_pair(ba)->set_face(A);
+    bc->set_next(ca)->set_pair(cb)->set_face(A);
+    ca->set_next(ab)->set_pair(ac)->set_face(A);
+
+    ac->set_next(cd)->set_pair(ca)->set_face(B);
+    cd->set_next(da)->set_pair(dc)->set_face(B);
+    da->set_next(ac)->set_pair(ad)->set_face(B);
+
+    // add vertices, edges and faces to vectors
+    this->vertices.emplace_back(a);
+    this->vertices.emplace_back(b);
+    this->vertices.emplace_back(c);
+    this->vertices.emplace_back(d);
+
+    this->edges.emplace_back(ab);
+    this->edges.emplace_back(ba);
+    this->edges.emplace_back(bc);
+    this->edges.emplace_back(cb);
+    this->edges.emplace_back(cd);
+    this->edges.emplace_back(dc);
+    this->edges.emplace_back(da);
+    this->edges.emplace_back(ad);
+    this->edges.emplace_back(ac);
+    this->edges.emplace_back(ca);
+
+    this->faces.emplace_back(A);
+    this->faces.emplace_back(B);
+}
+
+void Geometry::generate_tetra_triangle() {
+    // create vertices
+    Vertex* a = new Vertex(glm::vec3(-1,1,0));
+    Vertex* b = new Vertex(glm::vec3(0,-std::sqrt(2.0f),0));
+    Vertex* c = new Vertex(glm::vec3(1,1,0));
+    Vertex* d = new Vertex((a->get_pos() + b->get_pos()) / 2.0f);
+    Vertex* e = new Vertex((b->get_pos() + c->get_pos()) / 2.0f);
+    Vertex* f = new Vertex((a->get_pos() + c->get_pos()) / 2.0f);
+
+    // create half edges
+    // triangle A
+    HalfEdge* ad = new HalfEdge(a);
+    HalfEdge* da = new HalfEdge(d);
+    HalfEdge* df = new HalfEdge(d);
+    HalfEdge* fd = new HalfEdge(f);
+    HalfEdge* fa = new HalfEdge(f);
+    HalfEdge* af = new HalfEdge(a);
+
+    // triangle B
+    HalfEdge* db = new HalfEdge(d);
+    HalfEdge* bd = new HalfEdge(b);
+    HalfEdge* be = new HalfEdge(b);
+    HalfEdge* eb = new HalfEdge(e);
+    HalfEdge* ed = new HalfEdge(e);
+    HalfEdge* de = new HalfEdge(d);
+
+    // triangle C
+    HalfEdge* ec = new HalfEdge(e);
+    HalfEdge* ce = new HalfEdge(c);
+    HalfEdge* cf = new HalfEdge(c);
+    HalfEdge* fc = new HalfEdge(f);
+    HalfEdge* fe = new HalfEdge(f);
+    HalfEdge* ef = new HalfEdge(e);
+
+    // create faces
+    Face* A = new Face(df);
+    Face* B = new Face(ed);
+    Face* C = new Face(fe);
+    Face* D = new Face(ef);
+
+    // connect pointers
+    ad->set_next(df)->set_pair(da)->set_face(A);
+    df->set_next(fa)->set_pair(fd)->set_face(A);
+    fa->set_next(ad)->set_pair(af)->set_face(A);
+    da->set_pair(ad);
+    fd->set_pair(df);
+    af->set_pair(fa);
+
+    db->set_next(be)->set_pair(bd)->set_face(B);
+    be->set_next(ed)->set_pair(eb)->set_face(B);
+    ed->set_next(db)->set_pair(de)->set_face(B);
+    bd->set_pair(db);
+    eb->set_pair(be);
+    de->set_pair(ed);
+
+    ec->set_next(cf)->set_pair(ce)->set_face(C);
+    cf->set_next(fe)->set_pair(fc)->set_face(C);
+    fe->set_next(ec)->set_pair(ef)->set_face(C);
+    ce->set_pair(ec);
+    fc->set_pair(cf);
+    ef->set_pair(fe);
+
+    de->set_next(ef)->set_face(D);
+    ef->set_next(fd)->set_face(D);
+    fd->set_next(de)->set_face(D);
+
+    // add vertices, edges and faces to vectors
+    this->vertices.emplace_back(a);
+    this->vertices.emplace_back(b);
+    this->vertices.emplace_back(c);
+    this->vertices.emplace_back(d);
+    this->vertices.emplace_back(e);
+    this->vertices.emplace_back(f);
+
+    this->edges.emplace_back(ad);
+    this->edges.emplace_back(da);
+    this->edges.emplace_back(df);
+    this->edges.emplace_back(fd);
+    this->edges.emplace_back(fa);
+    this->edges.emplace_back(af);
+
+    // triangle B
+    this->edges.emplace_back(db);
+    this->edges.emplace_back(bd);
+    this->edges.emplace_back(be);
+    this->edges.emplace_back(eb);
+    this->edges.emplace_back(ed);
+    this->edges.emplace_back(de);
+
+    // triangle C
+    this->edges.emplace_back(ec);
+    this->edges.emplace_back(ce);
+    this->edges.emplace_back(cf);
+    this->edges.emplace_back(fc);
+    this->edges.emplace_back(fe);
+    this->edges.emplace_back(ef);
+
+    this->faces.emplace_back(A);
+    this->faces.emplace_back(B);
+    this->faces.emplace_back(C);
+    this->faces.emplace_back(D);
 }
 
 void Geometry::generate_icosahedron() {
@@ -47,19 +229,18 @@ void Geometry::generate_icosahedron() {
     static const float b = (radius / ratio) / (2.0f * phi);
 
     // define the vertices of the icosahedron
-    std::vector<Vertex*> temp_vertices;
-    temp_vertices.emplace_back(new Vertex(glm::vec3( 0,  b, -a)));
-    temp_vertices.emplace_back(new Vertex(glm::vec3( b,  a,  0)));
-    temp_vertices.emplace_back(new Vertex(glm::vec3(-b,  a,  0)));
-    temp_vertices.emplace_back(new Vertex(glm::vec3( 0,  b,  a)));
-    temp_vertices.emplace_back(new Vertex(glm::vec3( 0, -b,  a)));
-    temp_vertices.emplace_back(new Vertex(glm::vec3(-a,  0,  b)));
-    temp_vertices.emplace_back(new Vertex(glm::vec3( 0, -b, -a)));
-    temp_vertices.emplace_back(new Vertex(glm::vec3( a,  0, -b)));
-    temp_vertices.emplace_back(new Vertex(glm::vec3( a,  0,  b)));
-    temp_vertices.emplace_back(new Vertex(glm::vec3(-a,  0, -b)));
-    temp_vertices.emplace_back(new Vertex(glm::vec3( b, -a,  0)));
-    temp_vertices.emplace_back(new Vertex(glm::vec3(-b, -a,  0)));
+    this->vertices.emplace_back(new Vertex(glm::vec3( 0,  b, -a)));
+    this->vertices.emplace_back(new Vertex(glm::vec3( b,  a,  0)));
+    this->vertices.emplace_back(new Vertex(glm::vec3(-b,  a,  0)));
+    this->vertices.emplace_back(new Vertex(glm::vec3( 0,  b,  a)));
+    this->vertices.emplace_back(new Vertex(glm::vec3( 0, -b,  a)));
+    this->vertices.emplace_back(new Vertex(glm::vec3(-a,  0,  b)));
+    this->vertices.emplace_back(new Vertex(glm::vec3( 0, -b, -a)));
+    this->vertices.emplace_back(new Vertex(glm::vec3( a,  0, -b)));
+    this->vertices.emplace_back(new Vertex(glm::vec3( a,  0,  b)));
+    this->vertices.emplace_back(new Vertex(glm::vec3(-a,  0, -b)));
+    this->vertices.emplace_back(new Vertex(glm::vec3( b, -a,  0)));
+    this->vertices.emplace_back(new Vertex(glm::vec3(-b, -a,  0)));
 
     std::vector<unsigned int> triangles{
         0, 1, 2, 3, 2, 1, 3, 4, 5, 3, 8, 4, 0, 6, 7, 0, 9, 6, 4, 10,
@@ -75,14 +256,10 @@ void Geometry::generate_icosahedron() {
         const unsigned int id2 = triangles[i+1];
         const unsigned int id3 = triangles[i+2];
 
-        HalfEdge* edge1 = new HalfEdge(temp_vertices[id1]);
-        HalfEdge* edge2 = new HalfEdge(temp_vertices[id2]);
-        HalfEdge* edge3 = new HalfEdge(temp_vertices[id3]);
+        HalfEdge* edge1 = new HalfEdge(this->vertices[id1].get());
+        HalfEdge* edge2 = new HalfEdge(this->vertices[id2].get());
+        HalfEdge* edge3 = new HalfEdge(this->vertices[id3].get());
         this->add_face(edge1);
-
-        this->vertices.emplace_back(temp_vertices[id1]);
-        this->vertices.emplace_back(temp_vertices[id2]);
-        this->vertices.emplace_back(temp_vertices[id3]);
 
         edge1->set_next(edge2)->set_face(this->faces.back().get());
         edge2->set_next(edge3)->set_face(this->faces.back().get());
@@ -176,46 +353,301 @@ void Geometry::load_vertices_gpu() {
 }
 
 void Geometry::subdivide() {
-    // create new objects to hold all new vertices, faces and half edges
-    std::vector<std::unique_ptr<Vertex> > new_vertices;
-    std::vector<std::unique_ptr<Face> > new_faces;
-    std::vector<std::unique_ptr<HalfEdge> > new_edges;
-
-    std::map<std::pair<Vertex*, Vertex*>, Vertex*> splitted_edges;
-    std::map<std::pair<size_t, size_t>, HalfEdge*> temp_edges;
-
-    // loop over all vertices
-    for(auto&& vert1: vertices) {
-        // create new vertex pointer
-        Vertex* current_vertex = new Vertex(vert1->get_pos());
-        new_vertices.emplace_back(current_vertex);
-        const unsigned int id1 = new_vertices.size();
-
-        // loop over all edges
-        HalfEdge* edge = vert1->get_edge();
-        Vertex* prev_vertex = NULL;
-        do {
-            // get opposite vector
-            auto vert2 = edge->get_vertex();
-
-            // split the edge if it does not exist already
-            Vertex* center_vertex;
-            auto it = splitted_edges.find(std::pair<Vertex*, Vertex*>(vert1.get(), vert2));
-            if(it == splitted_edges.end()) {
-                center_vertex = new Vertex(glm::normalize((vert1->get_pos() + vert2->get_pos()) / 2.0f));
-            } else {
-                center_vertex = it->second;
-            }
-
-            //center_vertex = new Vertex(glm::normalize((current_vertex->get_pos() + vert2->get_pos()) / 2.0f));
-            //prev_vertex = vertex;
-
-            // we have three vertices, so we can make a new face and all half edges!
-            if(prev_vertex) {
-
-            }
-
-            edge = edge->get_pair()->get_next();
-        } while(edge != vert1->get_edge());
+    // reset all edges and vertices
+    for(auto&& edge: edges) {
+        edge->reset_new();
+        edge->reset_splitted();
     }
+
+    for(auto&& vertex: vertices) {
+        vertex->reset_new();
+    }
+
+    // loop over all edges and split them
+    const unsigned int nr_edges = this->edges.size();
+    for(unsigned int i=0; i<nr_edges; i++) {
+        this->split_edge(this->edges[i].get());
+    }
+
+    // loop over all edges and flip them if they connect a new with an old vertex
+    for(auto&& edge: edges) {
+        Vertex* a = edge->get_vertex();
+
+        // if an edge has no pair just continue (boundary edge)
+        if(edge->get_pair() == NULL) {
+            continue;
+        }
+        Vertex* b = edge->get_pair()->get_vertex();
+
+        if(edge->is_new()) {
+            if((a->is_new() && !b->is_new()) ||
+               (!a->is_new() && b->is_new())) {
+                this->flip_edge(edge.get());
+            }
+        }
+    }
+}
+
+void Geometry::flip_edge(HalfEdge* edge) {
+    /*************************
+    #    c             c     #
+    #   /|\           / \    #
+    #  / | \         / B \   #
+    # a A|B d  ==>  a-----d  #
+    #  \ | /         \ A /   #
+    #   \|/           \ /    #
+    #    b             b     #
+    #                        #
+    *************************/
+
+    // get edges
+    HalfEdge* bc = edge;
+    HalfEdge* cb = edge->get_pair();
+
+    // check if this is a boundary edge, if so, return
+    if(bc->get_next() == NULL || cb->get_next() == NULL) {
+        return;
+    }
+
+    HalfEdge* bd = cb->get_next();
+    HalfEdge* db = bd->get_pair();
+    HalfEdge* ca = bc->get_next();
+    HalfEdge* ac = ca->get_pair();
+    HalfEdge* ab = ca->get_next();
+    HalfEdge* ba = ab->get_pair();
+    HalfEdge* dc = bd->get_next();
+    HalfEdge* cd = dc->get_pair();
+
+    // get faces
+    Face* A = bc->get_face();
+    Face* B = cb->get_face();
+
+    // get vertices
+    Vertex* a = ab->get_vertex();
+    Vertex* b = bc->get_vertex();
+    Vertex* c = cb->get_vertex();
+    Vertex* d = dc->get_vertex();
+
+    // move vertices
+    HalfEdge* ad = cb;
+    HalfEdge* da = bc;
+
+    // reconnect pointers half edges
+    ad->set_next(dc)->set_face(B);
+    dc->set_next(ca)->set_face(B);
+    ca->set_next(ad)->set_face(B);
+
+    da->set_next(ab)->set_face(A);
+    ab->set_next(bd)->set_face(A);
+    bd->set_next(da)->set_face(A);
+
+    // set new vertices the new edges emanate from
+    ad->set_vertex(a);
+    da->set_vertex(d);
+
+    // reconnect pointers faces
+    A->set_edge(da);
+    B->set_edge(ad);
+
+    // reconnect pointers vertices
+    a->set_edge(ad);
+    b->set_edge(bd);
+    c->set_edge(ca);
+    d->set_edge(da);
+}
+
+void Geometry::split_edge(HalfEdge* edge) {
+    // if this edge has already been splitted in a previous operation,
+    // just return this function
+    if(edge->has_splitted()) {
+        return;
+    }
+
+    // Figure: Graphical representation of edge splitting
+    /*************************
+    #    c             c     #
+    #   /|\           /|\    #
+    #  / | \         /A|B\   #
+    # a A|B d  ==>  a--m--d  #
+    #  \ | /         \C|D/   #
+    #   \|/           \|/    #
+    #    b             b     #
+    #                        #
+    *************************/
+    // get edges
+    HalfEdge* bc = edge;
+    HalfEdge* cb = edge->get_pair();
+
+    bool has_A = bc->get_face() ? true : false;
+    bool has_B = cb->get_face() ? true : false;
+
+    HalfEdge *ca = NULL, *ac = NULL, *ab = NULL, *ba = NULL, *bd = NULL, *db = NULL;
+    HalfEdge *dc = NULL, *cd = NULL, *am = NULL, *ma = NULL, *md = NULL, *dm = NULL;
+    Vertex *a = NULL, *b = NULL, *c = NULL, *d = NULL;
+    Face *A = NULL, *B = NULL, *C = NULL, *D = NULL;
+
+    if(has_A) {
+        ca = bc->get_next();
+        ac = ca->get_pair();
+        ab = ca->get_next();
+        ba = ab->get_pair();
+
+        a = ab->get_vertex();
+        A = bc->get_face();
+    }
+
+    if(has_B) {
+        bd = cb->get_next();
+        db = bd->get_pair();
+        dc = bd->get_next();
+        cd = dc->get_pair();
+
+        d = dc->get_vertex();
+        B = cb->get_face();
+    }
+
+    // get vertices
+    b = bc->get_vertex();
+    c = cb->get_vertex();
+
+    // create new vertex
+    Vertex* m = new Vertex(glm::normalize((b->get_pos() + c->get_pos())/2.0f));
+    m->set_new();
+
+    // introduce new vertices
+    HalfEdge* mc = new HalfEdge(m);
+    HalfEdge* cm = new HalfEdge(c);
+
+    if(has_A) {
+        am = new HalfEdge(a);
+        ma = new HalfEdge(m);
+        am->set_new();
+        ma->set_new();
+    }
+
+    if(has_B) {
+        md = new HalfEdge(m);
+        md->set_new();
+        dm = new HalfEdge(d);
+        dm->set_new();
+    }
+
+    // reset vertices bc and cb to bm and mb
+    HalfEdge* bm = bc;
+    HalfEdge* mb = cb;
+    mb->set_vertex(m); // set new point where mb is originating from
+
+    // set the new Vertex* next
+    // Face A
+    if(has_A) {
+        mc->set_next(ca)->set_pair(cm);
+        ca->set_next(am)->set_pair(ac);
+        am->set_next(mc)->set_pair(ma);
+    }
+
+    // Face B
+    if(has_B) {
+        md->set_next(dc)->set_pair(dm);
+        dc->set_next(cm)->set_pair(cd);
+        cm->set_next(md)->set_pair(mc);
+    }
+
+    // Face C
+    if(has_A) {
+        ma->set_next(ab)->set_pair(am);
+        ab->set_next(bm)->set_pair(ba);
+        bm->set_next(ma)->set_pair(mb);
+    }
+
+    // Face D
+    if(has_B) {
+        bd->set_next(dm)->set_pair(db);
+        dm->set_next(mb)->set_pair(md);
+        mb->set_next(bd)->set_pair(bm);
+    }
+
+    // set faces
+    if(has_A) {
+        A->set_edge(mc);
+        C = new Face(bm);
+    }
+
+    if(has_B) {
+        B->set_edge(cm);
+        D = new Face(mb);
+    }
+
+    /*************************
+    #    c             c     #
+    #   /|\           /|\    #
+    #  / | \         /A|B\   #
+    # a A|B d  ==>  a--m--d  #
+    #  \ | /         \C|D/   #
+    #   \|/           \|/    #
+    #    b             b     #
+    #                        #
+    *************************/
+
+    // connect faces to half edges
+    if(has_A) {
+        am->set_face(A);
+        mc->set_face(A);
+        ca->set_face(A);
+    }
+
+    if(has_B) {
+        md->set_face(B);
+        dc->set_face(B);
+        cm->set_face(B);
+    }
+
+    if(has_A) {
+        ma->set_face(C);
+        ab->set_face(C);
+        bm->set_face(C);
+    }
+
+    if(has_B) {
+        bd->set_face(D);
+        dm->set_face(D);
+        mb->set_face(D);
+    }
+
+    // update the vertices
+    if(has_A) {
+        a->set_edge(ab);
+    }
+    b->set_edge(bd);
+    if(has_B) {
+        d->set_edge(dc);
+    }
+    c->set_edge(ca);
+    m->set_edge(mc);
+
+    // finally place all new vertices, halfedges and faces in the vectors
+    this->vertices.emplace_back(m);
+
+    // remember; bm and mb are made using bc and cb
+    if(has_A) {
+        this->edges.emplace_back(am);
+        this->edges.emplace_back(ma);
+        this->faces.emplace_back(C);
+    }
+    if(has_B) {
+        this->edges.emplace_back(md);
+        this->edges.emplace_back(dm);
+        this->faces.emplace_back(D);
+    }
+    this->edges.emplace_back(mc);
+    this->edges.emplace_back(cm);
+
+    // designate that this edge and it's pair have been splitted
+    bc->set_splitted();
+    cb->set_splitted();
+}
+
+Geometry::~Geometry() {
+    glBindVertexArray(0);
+    glDeleteBuffers(4, this->vbo);
+    glDeleteVertexArrays(1, &this->vao);
 }
