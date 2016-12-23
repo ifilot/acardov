@@ -24,6 +24,19 @@ Face::Face(HalfEdge* _edge) {
     this->edge = _edge;
 }
 
+glm::vec3 Face::get_center() const {
+    HalfEdge* edge = this->edge;
+    glm::vec3 center = glm::vec3(0,0,0);
+    unsigned int count = 0;
+    do {
+        count++;
+        center += edge->get_vertex()->get_pos();
+        edge = edge->get_next();
+    } while (edge != this->edge);
+
+     return center / (float)count;
+}
+
 Vertex::Vertex(const glm::vec3& _pos) {
     this->pos = _pos;
     this->flag_new = false;
@@ -44,7 +57,7 @@ Geometry::Geometry(unsigned int nr_subdivisions) {
     for(unsigned int i=0; i<nr_subdivisions; i++) {
         this->subdivide();
     }
-    this->load_vertices_gpu();
+    this->load_vertices_dual_gpu();
 }
 
 void Geometry::generate_square() {
@@ -345,6 +358,93 @@ void Geometry::load_vertices_gpu() {
     glBufferData(GL_ARRAY_BUFFER, cols.size() * 3 * sizeof(float), &cols[0][0], GL_STATIC_DRAW);
     glEnableVertexAttribArray(2);
     glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, 0);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, this->vbo[3]);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), &indices[0], GL_STATIC_DRAW);
+
+    glBindVertexArray(0);
+}
+
+void Geometry::load_vertices_dual_gpu() {
+    std::vector<glm::vec3> verts;
+    std::vector<glm::vec2> uvs;
+    std::vector<unsigned int> indices;
+
+    for(auto&& vertex: vertices) {
+        HalfEdge* edge = vertex->get_edge();
+
+        unsigned int count = 0;
+        glm::vec3 prev_pos = glm::vec3(0,0,0);
+
+        do {
+            count++;
+
+            glm::vec3 pos = edge->get_face()->get_center();
+
+            // add a vector of this face to the list
+            if(count > 1) {
+                verts.push_back(vertex->get_pos());
+                verts.push_back(prev_pos);
+                verts.push_back(pos);
+            }
+
+            // store current position for next iteration
+            prev_pos = pos;
+            edge = edge->get_pair()->get_next();
+        } while (edge != vertex->get_edge());
+
+        // add the closing triangle
+        verts.push_back(vertex->get_pos());
+        verts.push_back(prev_pos);
+        verts.push_back(vertex->get_edge()->get_face()->get_center());
+
+        for(unsigned int i=0; i<count * 3; i++) {
+            indices.push_back(indices.size());
+        }
+
+        if(count == 5) {
+            for(unsigned int i=0; i<count * 3; i++) {
+                uvs.push_back(glm::vec2(0,0));
+            }
+            continue;
+        }
+
+        std::vector<glm::vec2> vert_hexagon = {
+            glm::vec2(0.48f, 0.98f),
+            glm::vec2(0.02f, 1.0f - 35.0f/140.0f - 0.02f),
+            glm::vec2(0.02f, 1.0f - 104.0f/140.0f + 0.02f),
+            glm::vec2(0.48f, 0.02f),
+            glm::vec2(0.98f, 1.0f - 104.0f/140.0f + 0.02f),
+            glm::vec2(0.98f, 1.0f - 35.0f/140.0f - 0.02f)
+        };
+
+        for(unsigned int i=0; i<count; i++) {
+            uvs.push_back(glm::vec2(0.5f,0.5f));
+            uvs.push_back(vert_hexagon[(i)%6]);
+            uvs.push_back(vert_hexagon[(i+1)%6]);
+        }
+    }
+    this->nr_vertices = indices.size();
+
+    // load vao and vbo
+    glGenVertexArrays(1, &this->vao);
+    glBindVertexArray(this->vao);
+    glGenBuffers(4, this->vbo);
+
+    glBindBuffer(GL_ARRAY_BUFFER, this->vbo[0]);
+    glBufferData(GL_ARRAY_BUFFER, verts.size() * 3 * sizeof(float), &verts[0][0], GL_STATIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+
+    glBindBuffer(GL_ARRAY_BUFFER, this->vbo[1]);
+    glBufferData(GL_ARRAY_BUFFER, verts.size() * 3 * sizeof(float), &verts[0][0], GL_STATIC_DRAW);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, 0);
+
+    glBindBuffer(GL_ARRAY_BUFFER, this->vbo[2]);
+    glBufferData(GL_ARRAY_BUFFER, uvs.size() * 3 * sizeof(float), &uvs[0][0], GL_STATIC_DRAW);
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0, 0);
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, this->vbo[3]);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), &indices[0], GL_STATIC_DRAW);

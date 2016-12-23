@@ -52,6 +52,8 @@ public:
         this->edge = _edge;
     }
 
+    glm::vec3 get_center() const;
+
 private:
 };
 
@@ -198,6 +200,8 @@ private:
     void add_face(HalfEdge* _edge);
 
     void load_vertices_gpu();
+
+    void load_vertices_dual_gpu();
 
     void flip_edge(HalfEdge* edge);
 

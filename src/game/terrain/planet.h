@@ -31,12 +31,14 @@
 #include "core/shader.h"
 #include "core/camera.h"
 #include "game/terrain/geometry.h"
+#include "util/pngfuncs.h"
 
 class Planet {
 private:
     std::unique_ptr<Shader> shader;
     float angle;
     std::unique_ptr<Geometry> geometry;
+    GLuint texture_id;
 
 public:
     /**
@@ -57,6 +59,10 @@ private:
     Planet();
 
     void load_shader();
+
+    void load_assets();
+
+    void load_texture(const std::string& filename);
 
     Planet(Planet const&)          = delete;
     void operator=(Planet const&)  = delete;
