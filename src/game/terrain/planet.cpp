@@ -21,43 +21,77 @@
 #include "planet.h"
 
 Planet::Planet() {
-    this->geometry = std::unique_ptr<Geometry>(new Geometry(4));
+    this->geometry = std::unique_ptr<Geometry>(new Geometry(5));
+    this->geometry->load_vertices_dual_gpu(&this->vao_tiles, &this->vbo_tiles[0], &this->nr_vertices);
+    this->geometry->load_lines_dual_gpu(&this->vao_lines, &this->vbo_lines[0], &this->nr_lines);
+    this->geometry->load_tiles(&this->tiles);
     this->load_assets();
-    this->load_shader();
+    this->load_shaders();
+
+    this->set_poles();
 }
 
 void Planet::draw() {
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, texture_id);
-    this->shader->link_shader();
 
-    const glm::mat4 mvp = Camera::get().get_projection() * glm::rotate(angle, glm::vec3(0,1,0)) * glm::scale(glm::vec3(5,5,5));
-    this->shader->set_uniform("mvp", &mvp[0][0]);
+    // draw all tiles
+    this->shader_tiles->link_shader();
+
+    const glm::mat4 mvp_tiles = Camera::get().get_projection() * Camera::get().get_view();
+    this->shader_tiles->set_uniform("mvp", &mvp_tiles[0][0]);
     const unsigned int texture_slot = 0;
-    this->shader->set_uniform("text", &texture_slot);
+    this->shader_tiles->set_uniform("text", &texture_slot);
 
-    this->geometry->draw();
+    glBindVertexArray(this->vao_tiles);
+    glDrawElements(GL_TRIANGLES, this->nr_vertices, GL_UNSIGNED_INT, 0);
+    glBindVertexArray(0);
 
-    this->shader->unlink_shader();
+    this->shader_tiles->unlink_shader();
+
+    // draw all lines
+    this->shader_lines->link_shader();
+
+    static const float s = 1.001f;
+    const glm::mat4 mvp_lines = mvp_tiles * glm::scale(glm::vec3(s,s,s));
+    this->shader_lines->set_uniform("mvp", &mvp_lines[0][0]);
+
+    glBindVertexArray(this->vao_lines);
+    glDrawElements(GL_LINES, this->nr_lines, GL_UNSIGNED_INT, 0);
+    glBindVertexArray(0);
+
+    this->shader_lines->unlink_shader();
+
     glBindTexture(GL_TEXTURE_2D, 0);
     glActiveTexture(GL_TEXTURE0);
 }
 
 void Planet::update(double dt) {
-    angle += dt * 0.5;
+
 }
 
-void Planet::load_shader() {
-    this->shader = std::unique_ptr<Shader>(new Shader("assets/shaders/planet"));
+void Planet::load_shaders() {
+    // load shader for the tiles
+    this->shader_tiles = std::unique_ptr<Shader>(new Shader("assets/shaders/planet"));
 
-    this->shader->add_attribute(ShaderAttribute::POSITION, "position");
-    this->shader->add_attribute(ShaderAttribute::NORMAL, "normal");
-    this->shader->add_attribute(ShaderAttribute::TEXTURE_COORDINATE, "uv");
-    this->shader->add_uniform(ShaderUniform::MAT4, "mvp", 1);
-    this->shader->add_uniform(ShaderUniform::TEXTURE, "text", 1);
+    this->shader_tiles->add_attribute(ShaderAttribute::POSITION, "position");
+    this->shader_tiles->add_attribute(ShaderAttribute::NORMAL, "normal");
+    this->shader_tiles->add_attribute(ShaderAttribute::TEXTURE_COORDINATE, "uv");
+    this->shader_tiles->add_uniform(ShaderUniform::MAT4, "mvp", 1);
+    this->shader_tiles->add_uniform(ShaderUniform::TEXTURE, "text", 1);
 
-    glBindVertexArray(this->geometry->get_vao());
-    this->shader->bind_uniforms_and_attributes();
+    glBindVertexArray(this->vao_tiles);
+    this->shader_tiles->bind_uniforms_and_attributes();
+    glBindVertexArray(0);
+
+    // load shader for the lines
+    this->shader_lines = std::unique_ptr<Shader>(new Shader("assets/shaders/lines"));
+
+    this->shader_lines->add_attribute(ShaderAttribute::POSITION, "position");
+    this->shader_lines->add_uniform(ShaderUniform::MAT4, "mvp", 1);
+
+    glBindVertexArray(this->vao_lines);
+    this->shader_lines->bind_uniforms_and_attributes();
     glBindVertexArray(0);
 }
 
@@ -98,4 +132,31 @@ void Planet::load_texture(const std::string& filename) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
     glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+void Planet::set_poles() {
+    glBindVertexArray(this->vao_tiles);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo_tiles[2]);
+
+    std::vector<glm::vec2> data;
+    for(unsigned int i=0; i<18; i++) {
+        data.push_back(glm::vec2(0,0));
+    }
+
+    for(auto&& tile: tiles) {
+        if(std::abs(tile->get_pos()[2]) > 0.8f) {
+            glBufferSubData(GL_ARRAY_BUFFER, tile->get_memory_offset() * 6 * sizeof(float), tile->get_size() * 6 * sizeof(float), &data[0][0]);
+        }
+    }
+
+    glBindVertexArray(0);
+}
+
+Planet::~Planet() {
+    glBindVertexArray(0);
+    glDeleteBuffers(4, this->vbo_tiles);
+    glDeleteVertexArrays(1, &this->vao_tiles);
+
+    glDeleteBuffers(4, this->vbo_lines);
+    glDeleteVertexArrays(1, &this->vao_lines);
 }

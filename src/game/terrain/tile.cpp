@@ -1,5 +1,5 @@
 /**************************************************************************
- *   planet.h  --  This file is part of Acardov.                          *
+ *   tile.cpp  --  This file is part of Acardov.                          *
  *                                                                        *
  *   Copyright (C) 2016, Ivo Filot                                        *
  *                                                                        *
@@ -18,71 +18,8 @@
  *                                                                        *
  **************************************************************************/
 
-#ifndef _PLANET_H
-#define _PLANET_H
-
-#include <algorithm>
-#include <vector>
-#include <memory>
-#include <GL/glew.h>
-#include <GLFW/glfw3.h>
-#include <glm/glm.hpp>
-
-#include "core/shader.h"
-#include "core/camera.h"
-#include "game/terrain/geometry.h"
 #include "game/terrain/tile.h"
-#include "util/pngfuncs.h"
 
-class Planet {
-private:
-    std::unique_ptr<Shader> shader_tiles;
-    std::unique_ptr<Shader> shader_lines;
-
-    std::vector<std::unique_ptr<Tile> > tiles;
-
-    float angle;
-    std::unique_ptr<Geometry> geometry;
-    GLuint texture_id;
-
-    GLuint vao_tiles;
-    GLuint vbo_tiles[4];
-    unsigned int nr_vertices;
-
-    GLuint vao_lines;
-    GLuint vbo_lines[2];
-    unsigned int nr_lines;
-
-public:
-    /**
-     * @brief       get a reference to the camera object
-     *
-     * @return      reference to the camera object (singleton pattern)
-     */
-    static Planet& get() {
-        static Planet planet_instance;
-        return planet_instance;
-    }
-
-    void draw();
-
-    void update(double dt);
-
-    ~Planet();
-
-private:
-    Planet();
-
-    void load_shaders();
-
-    void load_assets();
-
-    void load_texture(const std::string& filename);
-
-    void set_poles();
-
-    Planet(Planet const&)          = delete;
-    void operator=(Planet const&)  = delete;
-};
-
-#endif //_PLANET_H
+Tile::Tile(const glm::vec3 _pos) {
+    this->pos = _pos;
+}

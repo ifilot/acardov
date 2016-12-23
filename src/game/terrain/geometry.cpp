@@ -20,44 +20,253 @@
 
 #include "geometry.h"
 
-Face::Face(HalfEdge* _edge) {
-    this->edge = _edge;
-}
-
-glm::vec3 Face::get_center() const {
-    HalfEdge* edge = this->edge;
-    glm::vec3 center = glm::vec3(0,0,0);
-    unsigned int count = 0;
-    do {
-        count++;
-        center += edge->get_vertex()->get_pos();
-        edge = edge->get_next();
-    } while (edge != this->edge);
-
-     return center / (float)count;
-}
-
-Vertex::Vertex(const glm::vec3& _pos) {
-    this->pos = _pos;
-    this->flag_new = false;
-}
-
-HalfEdge::HalfEdge(Vertex* _vertex) {
-    this->vertex = _vertex;
-
-    this->pair = NULL;
-    this->next = NULL;
-    this->face = NULL;
-    this->flag_has_splitted = false;
-    this->flag_new = false;
-}
-
+/*
+ * @brief   Geometry constructor class
+ *
+ * @param   Number of subdivision iterations to make the grid
+ *
+ * @return  Geometry instance
+ */
 Geometry::Geometry(unsigned int nr_subdivisions) {
     this->generate_icosahedron();
     for(unsigned int i=0; i<nr_subdivisions; i++) {
         this->subdivide();
     }
-    this->load_vertices_dual_gpu();
+}
+
+/*
+ * @brief   Load the vertices on the gpu of the half-edge data structure
+ *
+ * @param   Pointer to vertex attribute object
+ * @param   Pointer to vertex buffer object array
+ * @param   Pointer where number of indices is written to
+ *
+ * @return  void
+ */
+void Geometry::load_vertices_gpu(GLuint* vao, GLuint* vbo, unsigned int *nr) {
+    std::vector<glm::vec3> verts;
+    std::vector<glm::vec3> cols;
+    std::vector<unsigned int> indices;
+
+    boost::random::mt19937 rng;
+    boost::random::uniform_real_distribution<> dist(0.0, 1.0);
+
+    for(auto&& face: faces) {
+        HalfEdge* edge = face->get_edge();
+        const glm::vec3 col = glm::vec3((float)dist(rng), (float)dist(rng), (float)dist(rng));
+        do {
+            verts.push_back(edge->get_vertex()->get_pos());
+            cols.push_back(col);
+            edge = edge->get_next();
+        } while (edge != face->get_edge());
+
+        for(unsigned int i=0; i<3; i++) {
+            indices.push_back(indices.size());
+        }
+    }
+    *nr = indices.size();
+
+    // load vao and vbo
+    glGenVertexArrays(1, vao);
+    glBindVertexArray(*vao);
+    glGenBuffers(4, vbo);
+
+    glBindBuffer(GL_ARRAY_BUFFER, vbo[0]);
+    glBufferData(GL_ARRAY_BUFFER, verts.size() * 3 * sizeof(float), &verts[0][0], GL_STATIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+
+    glBindBuffer(GL_ARRAY_BUFFER, vbo[1]);
+    glBufferData(GL_ARRAY_BUFFER, verts.size() * 3 * sizeof(float), &cols[0][0], GL_STATIC_DRAW);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, 0);
+
+    glBindBuffer(GL_ARRAY_BUFFER, vbo[2]);
+    glBufferData(GL_ARRAY_BUFFER, cols.size() * 3 * sizeof(float), &cols[0][0], GL_STATIC_DRAW);
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, 0);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vbo[3]);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), &indices[0], GL_STATIC_DRAW);
+
+    glBindVertexArray(0);
+}
+
+/*
+ * @brief   Load the vertices on the gpu of the dual of the half-edge data structure
+ *
+ * @param   Pointer to vertex attribute object
+ * @param   Pointer to vertex buffer object array
+ * @param   Pointer where number of indices is written to
+ *
+ * @return  void
+ */
+void Geometry::load_vertices_dual_gpu(GLuint* vao, GLuint* vbo, unsigned int *nr) {
+    std::vector<glm::vec3> verts;
+    std::vector<glm::vec2> uvs;
+    std::vector<unsigned int> indices;
+
+    for(auto&& vertex: vertices) {
+        HalfEdge* edge = vertex->get_edge();
+
+        unsigned int count = 0;
+        glm::vec3 prev_pos = glm::vec3(0,0,0);
+
+        do {
+            count++;
+
+            glm::vec3 pos = edge->get_face()->get_center();
+
+            // add a vector of this face to the list
+            if(count > 1) {
+                verts.push_back(vertex->get_pos());
+                verts.push_back(prev_pos);
+                verts.push_back(pos);
+            }
+
+            // store current position for next iteration
+            prev_pos = pos;
+            edge = edge->get_pair()->get_next();
+        } while (edge != vertex->get_edge());
+
+        // add the closing triangle
+        verts.push_back(vertex->get_pos());
+        verts.push_back(prev_pos);
+        verts.push_back(vertex->get_edge()->get_face()->get_center());
+
+        for(unsigned int i=0; i<count * 3; i++) {
+            indices.push_back(indices.size());
+        }
+
+        if(count == 5) {
+            for(unsigned int i=0; i<count * 3; i++) {
+                uvs.push_back(glm::vec2(0,0));
+            }
+            continue;
+        }
+
+        std::vector<glm::vec2> vert_hexagon = {
+            glm::vec2(0.48f, 0.98f),
+            glm::vec2(0.02f, 1.0f - 35.0f/140.0f - 0.02f),
+            glm::vec2(0.02f, 1.0f - 104.0f/140.0f + 0.02f),
+            glm::vec2(0.48f, 0.02f),
+            glm::vec2(0.98f, 1.0f - 104.0f/140.0f + 0.02f),
+            glm::vec2(0.98f, 1.0f - 35.0f/140.0f - 0.02f)
+        };
+
+        for(unsigned int i=0; i<count; i++) {
+            uvs.push_back(glm::vec2(0.5f,0.5f));
+            uvs.push_back(vert_hexagon[(i)%6]);
+            uvs.push_back(vert_hexagon[(i+1)%6]);
+        }
+    }
+    *nr = indices.size();
+
+    // load vao and vbo
+    glGenVertexArrays(1, vao);
+    glBindVertexArray(*vao);
+    glGenBuffers(4, vbo);
+
+    glBindBuffer(GL_ARRAY_BUFFER, vbo[0]);
+    glBufferData(GL_ARRAY_BUFFER, verts.size() * 3 * sizeof(float), &verts[0][0], GL_STATIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+
+    glBindBuffer(GL_ARRAY_BUFFER, vbo[1]);
+    glBufferData(GL_ARRAY_BUFFER, verts.size() * 3 * sizeof(float), &verts[0][0], GL_STATIC_DRAW);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, 0);
+
+    glBindBuffer(GL_ARRAY_BUFFER, vbo[2]);
+    glBufferData(GL_ARRAY_BUFFER, uvs.size() * 2 * sizeof(float), &uvs[0][0], GL_STATIC_DRAW);
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0, 0);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vbo[3]);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), &indices[0], GL_STATIC_DRAW);
+
+    glBindVertexArray(0);
+}
+
+/*
+ * @brief   Load the vertices on the gpu of the dual of the half-edge data structure
+ *
+ * @param   Pointer to vertex attribute object
+ * @param   Pointer to vertex buffer object array
+ * @param   Pointer where number of indices is written to
+ *
+ * @return  void
+ */
+void Geometry::load_lines_dual_gpu(GLuint* vao, GLuint* vbo, unsigned int *nr) {
+    std::vector<glm::vec3> verts;
+    std::vector<glm::vec2> uvs;
+    std::vector<unsigned int> indices;
+
+    for(auto&& vertex: vertices) {
+        HalfEdge* edge = vertex->get_edge();
+
+        unsigned int count = 0;
+        do {
+            count++;
+            glm::vec3 pos = edge->get_face()->get_center();
+
+            // store vertex
+            verts.push_back(pos);
+            edge = edge->get_pair()->get_next();
+        } while (edge != vertex->get_edge());
+
+        const unsigned int sz = indices.size() / 2;
+        for(unsigned int i=0; i<count; i++) {
+            indices.push_back(sz + i);
+            indices.push_back(sz + ((i + 1)%count));
+        }
+    }
+    *nr = indices.size();
+
+    // load vao and vbo
+    glGenVertexArrays(1, vao);
+    glBindVertexArray(*vao);
+    glGenBuffers(2, vbo);
+
+    glBindBuffer(GL_ARRAY_BUFFER, vbo[0]);
+    glBufferData(GL_ARRAY_BUFFER, verts.size() * 3 * sizeof(float), &verts[0][0], GL_STATIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vbo[1]);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), &indices[0], GL_STATIC_DRAW);
+
+    glBindVertexArray(0);
+}
+
+void Geometry::load_tiles(std::vector<std::unique_ptr<Tile> > *tiles) {
+    for(auto&& vertex: vertices) {
+        tiles->emplace_back(new Tile(vertex->get_pos()));
+    }
+
+    size_t memory_offset = 0;
+    for(unsigned int i=0; i<this->vertices.size(); i++) {
+        Vertex* vertex = this->vertices[i].get();
+        HalfEdge* edge = vertex->get_edge();
+        Tile* tile = tiles->at(i).get();
+
+        // set all neighbours
+        unsigned int count = 0;
+        do {
+            count++;
+            unsigned int id = edge->get_vertex()->get_id();
+            tile->add_neighbour(tiles->at(id).get());
+
+            edge = edge->get_pair()->get_next();
+        } while (edge != vertex->get_edge());
+
+        // update tile details
+        tile->set_id(i);
+        tile->set_size(count);
+        tile->set_memory_offset(memory_offset);
+
+        memory_offset += count;
+    }
 }
 
 void Geometry::generate_square() {
@@ -109,10 +318,10 @@ void Geometry::generate_square() {
     da->set_next(ac)->set_pair(ad)->set_face(B);
 
     // add vertices, edges and faces to vectors
-    this->vertices.emplace_back(a);
-    this->vertices.emplace_back(b);
-    this->vertices.emplace_back(c);
-    this->vertices.emplace_back(d);
+    this->add_vertex(a);
+    this->add_vertex(b);
+    this->add_vertex(c);
+    this->add_vertex(d);
 
     this->edges.emplace_back(ab);
     this->edges.emplace_back(ba);
@@ -196,12 +405,12 @@ void Geometry::generate_tetra_triangle() {
     fd->set_next(de)->set_face(D);
 
     // add vertices, edges and faces to vectors
-    this->vertices.emplace_back(a);
-    this->vertices.emplace_back(b);
-    this->vertices.emplace_back(c);
-    this->vertices.emplace_back(d);
-    this->vertices.emplace_back(e);
-    this->vertices.emplace_back(f);
+    this->add_vertex(a);
+    this->add_vertex(b);
+    this->add_vertex(c);
+    this->add_vertex(d);
+    this->add_vertex(e);
+    this->add_vertex(f);
 
     this->edges.emplace_back(ad);
     this->edges.emplace_back(da);
@@ -242,18 +451,18 @@ void Geometry::generate_icosahedron() {
     static const float b = (radius / ratio) / (2.0f * phi);
 
     // define the vertices of the icosahedron
-    this->vertices.emplace_back(new Vertex(glm::vec3( 0,  b, -a)));
-    this->vertices.emplace_back(new Vertex(glm::vec3( b,  a,  0)));
-    this->vertices.emplace_back(new Vertex(glm::vec3(-b,  a,  0)));
-    this->vertices.emplace_back(new Vertex(glm::vec3( 0,  b,  a)));
-    this->vertices.emplace_back(new Vertex(glm::vec3( 0, -b,  a)));
-    this->vertices.emplace_back(new Vertex(glm::vec3(-a,  0,  b)));
-    this->vertices.emplace_back(new Vertex(glm::vec3( 0, -b, -a)));
-    this->vertices.emplace_back(new Vertex(glm::vec3( a,  0, -b)));
-    this->vertices.emplace_back(new Vertex(glm::vec3( a,  0,  b)));
-    this->vertices.emplace_back(new Vertex(glm::vec3(-a,  0, -b)));
-    this->vertices.emplace_back(new Vertex(glm::vec3( b, -a,  0)));
-    this->vertices.emplace_back(new Vertex(glm::vec3(-b, -a,  0)));
+    this->add_vertex(new Vertex(glm::vec3( 0,  b, -a)));
+    this->add_vertex(new Vertex(glm::vec3( b,  a,  0)));
+    this->add_vertex(new Vertex(glm::vec3(-b,  a,  0)));
+    this->add_vertex(new Vertex(glm::vec3( 0,  b,  a)));
+    this->add_vertex(new Vertex(glm::vec3( 0, -b,  a)));
+    this->add_vertex(new Vertex(glm::vec3(-a,  0,  b)));
+    this->add_vertex(new Vertex(glm::vec3( 0, -b, -a)));
+    this->add_vertex(new Vertex(glm::vec3( a,  0, -b)));
+    this->add_vertex(new Vertex(glm::vec3( a,  0,  b)));
+    this->add_vertex(new Vertex(glm::vec3(-a,  0, -b)));
+    this->add_vertex(new Vertex(glm::vec3( b, -a,  0)));
+    this->add_vertex(new Vertex(glm::vec3(-b, -a,  0)));
 
     std::vector<unsigned int> triangles{
         0, 1, 2, 3, 2, 1, 3, 4, 5, 3, 8, 4, 0, 6, 7, 0, 9, 6, 4, 10,
@@ -272,7 +481,7 @@ void Geometry::generate_icosahedron() {
         HalfEdge* edge1 = new HalfEdge(this->vertices[id1].get());
         HalfEdge* edge2 = new HalfEdge(this->vertices[id2].get());
         HalfEdge* edge3 = new HalfEdge(this->vertices[id3].get());
-        this->add_face(edge1);
+        this->faces.emplace_back(new Face(edge1));
 
         edge1->set_next(edge2)->set_face(this->faces.back().get());
         edge2->set_next(edge3)->set_face(this->faces.back().get());
@@ -304,152 +513,6 @@ void Geometry::generate_icosahedron() {
         this->edges.emplace_back(edge2);
         this->edges.emplace_back(edge3);
     }
-}
-
-void Geometry::add_face(HalfEdge* _edge) {
-    this->faces.emplace_back(new Face(_edge));
-}
-
-void Geometry::draw() {
-    glBindVertexArray(this->vao);
-    glDrawElements(GL_TRIANGLES, this->nr_vertices, GL_UNSIGNED_INT, 0);
-    glBindVertexArray(0);
-}
-
-void Geometry::load_vertices_gpu() {
-    std::vector<glm::vec3> verts;
-    std::vector<glm::vec3> cols;
-    std::vector<unsigned int> indices;
-
-    boost::random::mt19937 rng;
-    boost::random::uniform_real_distribution<> dist(0.0, 1.0);
-
-    for(auto&& face: faces) {
-        HalfEdge* edge = face->get_edge();
-        const glm::vec3 col = glm::vec3((float)dist(rng), (float)dist(rng), (float)dist(rng));
-        do {
-            verts.push_back(edge->get_vertex()->get_pos());
-            cols.push_back(col);
-            edge = edge->get_next();
-        } while (edge != face->get_edge());
-
-        for(unsigned int i=0; i<3; i++) {
-            indices.push_back(indices.size());
-        }
-    }
-    this->nr_vertices = indices.size();
-
-    // load vao and vbo
-    glGenVertexArrays(1, &this->vao);
-    glBindVertexArray(this->vao);
-    glGenBuffers(4, this->vbo);
-
-    glBindBuffer(GL_ARRAY_BUFFER, this->vbo[0]);
-    glBufferData(GL_ARRAY_BUFFER, verts.size() * 3 * sizeof(float), &verts[0][0], GL_STATIC_DRAW);
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
-
-    glBindBuffer(GL_ARRAY_BUFFER, this->vbo[1]);
-    glBufferData(GL_ARRAY_BUFFER, verts.size() * 3 * sizeof(float), &cols[0][0], GL_STATIC_DRAW);
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, 0);
-
-    glBindBuffer(GL_ARRAY_BUFFER, this->vbo[2]);
-    glBufferData(GL_ARRAY_BUFFER, cols.size() * 3 * sizeof(float), &cols[0][0], GL_STATIC_DRAW);
-    glEnableVertexAttribArray(2);
-    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, 0);
-
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, this->vbo[3]);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), &indices[0], GL_STATIC_DRAW);
-
-    glBindVertexArray(0);
-}
-
-void Geometry::load_vertices_dual_gpu() {
-    std::vector<glm::vec3> verts;
-    std::vector<glm::vec2> uvs;
-    std::vector<unsigned int> indices;
-
-    for(auto&& vertex: vertices) {
-        HalfEdge* edge = vertex->get_edge();
-
-        unsigned int count = 0;
-        glm::vec3 prev_pos = glm::vec3(0,0,0);
-
-        do {
-            count++;
-
-            glm::vec3 pos = edge->get_face()->get_center();
-
-            // add a vector of this face to the list
-            if(count > 1) {
-                verts.push_back(vertex->get_pos());
-                verts.push_back(prev_pos);
-                verts.push_back(pos);
-            }
-
-            // store current position for next iteration
-            prev_pos = pos;
-            edge = edge->get_pair()->get_next();
-        } while (edge != vertex->get_edge());
-
-        // add the closing triangle
-        verts.push_back(vertex->get_pos());
-        verts.push_back(prev_pos);
-        verts.push_back(vertex->get_edge()->get_face()->get_center());
-
-        for(unsigned int i=0; i<count * 3; i++) {
-            indices.push_back(indices.size());
-        }
-
-        if(count == 5) {
-            for(unsigned int i=0; i<count * 3; i++) {
-                uvs.push_back(glm::vec2(0,0));
-            }
-            continue;
-        }
-
-        std::vector<glm::vec2> vert_hexagon = {
-            glm::vec2(0.48f, 0.98f),
-            glm::vec2(0.02f, 1.0f - 35.0f/140.0f - 0.02f),
-            glm::vec2(0.02f, 1.0f - 104.0f/140.0f + 0.02f),
-            glm::vec2(0.48f, 0.02f),
-            glm::vec2(0.98f, 1.0f - 104.0f/140.0f + 0.02f),
-            glm::vec2(0.98f, 1.0f - 35.0f/140.0f - 0.02f)
-        };
-
-        for(unsigned int i=0; i<count; i++) {
-            uvs.push_back(glm::vec2(0.5f,0.5f));
-            uvs.push_back(vert_hexagon[(i)%6]);
-            uvs.push_back(vert_hexagon[(i+1)%6]);
-        }
-    }
-    this->nr_vertices = indices.size();
-
-    // load vao and vbo
-    glGenVertexArrays(1, &this->vao);
-    glBindVertexArray(this->vao);
-    glGenBuffers(4, this->vbo);
-
-    glBindBuffer(GL_ARRAY_BUFFER, this->vbo[0]);
-    glBufferData(GL_ARRAY_BUFFER, verts.size() * 3 * sizeof(float), &verts[0][0], GL_STATIC_DRAW);
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
-
-    glBindBuffer(GL_ARRAY_BUFFER, this->vbo[1]);
-    glBufferData(GL_ARRAY_BUFFER, verts.size() * 3 * sizeof(float), &verts[0][0], GL_STATIC_DRAW);
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, 0);
-
-    glBindBuffer(GL_ARRAY_BUFFER, this->vbo[2]);
-    glBufferData(GL_ARRAY_BUFFER, uvs.size() * 3 * sizeof(float), &uvs[0][0], GL_STATIC_DRAW);
-    glEnableVertexAttribArray(2);
-    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0, 0);
-
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, this->vbo[3]);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), &indices[0], GL_STATIC_DRAW);
-
-    glBindVertexArray(0);
 }
 
 void Geometry::subdivide() {
@@ -725,7 +788,7 @@ void Geometry::split_edge(HalfEdge* edge) {
     m->set_edge(mc);
 
     // finally place all new vertices, halfedges and faces in the vectors
-    this->vertices.emplace_back(m);
+    this->add_vertex(m);
 
     // remember; bm and mb are made using bc and cb
     if(has_A) {
@@ -746,8 +809,51 @@ void Geometry::split_edge(HalfEdge* edge) {
     cb->set_splitted();
 }
 
-Geometry::~Geometry() {
-    glBindVertexArray(0);
-    glDeleteBuffers(4, this->vbo);
-    glDeleteVertexArrays(1, &this->vao);
+void Geometry::add_vertex(Vertex* vertex) {
+    this->vertices.emplace_back(vertex);
+    this->vertices.back()->set_id(this->vertices.size()-1);
+}
+
+Vertex::Vertex(const glm::vec3& _pos) {
+    this->pos = _pos;
+    this->flag_new = false;
+}
+
+HalfEdge::HalfEdge(Vertex* _vertex) {
+    this->vertex = _vertex;
+
+    this->pair = NULL;
+    this->next = NULL;
+    this->face = NULL;
+    this->flag_has_splitted = false;
+    this->flag_new = false;
+}
+
+/**
+ * @brief       face constructor
+ *
+ * @param       pointer to half edge
+ *
+ * @return      face instance
+ */
+Face::Face(HalfEdge* _edge) {
+    this->edge = _edge;
+}
+
+/**
+ * @brief       get the center coordinate of a face
+ *
+ * @return      center position
+ */
+glm::vec3 Face::get_center() const {
+    HalfEdge* edge = this->edge;
+    glm::vec3 center = glm::vec3(0,0,0);
+    unsigned int count = 0;
+    do {
+        count++;
+        center += edge->get_vertex()->get_pos();
+        edge = edge->get_next();
+    } while (edge != this->edge);
+
+     return center / (float)count;
 }

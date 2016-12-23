@@ -77,6 +77,13 @@ private:
 
     unsigned int num_frames;
 
+    enum{
+        STATE_VIEW,
+        STATE_DRAG,
+
+        NR_STATES
+    };
+
 public:
     /**
      * @fn Visualizer get

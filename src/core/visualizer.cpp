@@ -137,15 +137,29 @@ void Visualizer::handle_key_down(int key, int scancode, int action, int mods) {
  * @return void
  */
 void Visualizer::handle_mouse_key_down(int button, int action, int mods) {
+    if(button ==  GLFW_MOUSE_BUTTON_1 && action == GLFW_PRESS) {
+        Mouse::get().button_left_press();
+        this->state |= (1 << STATE_DRAG);
+        Mouse::get().set_drag_view(true);
+    }
 
+    if(button ==  GLFW_MOUSE_BUTTON_1 && action == GLFW_RELEASE && this->state & (1 << STATE_DRAG)) {
+        Mouse::get().button_left_release();
+        this->state &= ~(1 << STATE_DRAG);
+        Mouse::get().set_drag_view(false);
+    }
 }
 
 void Visualizer::handle_mouse_cursor(double xpos, double ypos) {
     Mouse::get().set_cursor(xpos, ypos);
+
+    if(this->state & (1 << STATE_DRAG)) {
+        Mouse::get().button_left_press();
+    }
 }
 
 void Visualizer::handle_scroll(double xoffset, double yoffset) {
-
+    Camera::get().zoom(yoffset);
 }
 
 void Visualizer::handle_char_callback(unsigned int key) {
