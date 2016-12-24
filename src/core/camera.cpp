@@ -40,8 +40,8 @@
  */
 void Camera::update() {
     // make sure base position is never below 1.5 units
-    if(glm::length(this->base_position) < 1.5f) {
-        this->base_position = 1.5f * glm::normalize(this->base_position);
+    if(glm::length(this->base_position) < 2.5f) {
+        this->base_position = 2.5f * glm::normalize(this->base_position);
         this->base_view_direction = -glm::normalize(this->base_position);
     }
 
@@ -162,8 +162,8 @@ void Camera::calculate_ray(const glm::vec2& mouse_position, glm::vec3* ray_origi
  * @return      vector on the arcball
  */
 glm::vec3 Camera::calculate_arcball_vector(const glm::vec2& mouse_position) {
-    glm::vec3 p = glm::vec3(1.0f * mouse_position[0] / Screen::get().get_width() * 2.0f - 1.0f,
-                            1.0f * mouse_position[1] / Screen::get().get_height() * 2.0f - 1.0f,
+    glm::vec3 p = glm::vec3(1.0f * mouse_position[0] / (float)Screen::get().get_width() * 2.0f - 1.0f,
+                            1.0f * mouse_position[1] / (float)Screen::get().get_height() * 2.0f - 1.0f,
                             0.0f);
 
     p.y = -p.y;

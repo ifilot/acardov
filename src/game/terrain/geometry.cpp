@@ -103,7 +103,7 @@ void Geometry::load_vertices_gpu(GLuint* vao, GLuint* vbo, unsigned int *nr) {
  */
 void Geometry::load_vertices_dual_gpu(GLuint* vao, GLuint* vbo, unsigned int *nr) {
     std::vector<glm::vec3> verts;
-    std::vector<glm::vec2> uvs;
+    std::vector<glm::vec3> colors;
     std::vector<unsigned int> indices;
 
     for(auto&& vertex: vertices) {
@@ -134,30 +134,10 @@ void Geometry::load_vertices_dual_gpu(GLuint* vao, GLuint* vbo, unsigned int *nr
         verts.push_back(prev_pos);
         verts.push_back(vertex->get_edge()->get_face()->get_center());
 
+        const glm::vec3 col = hex2col("dddac7");
         for(unsigned int i=0; i<count * 3; i++) {
             indices.push_back(indices.size());
-        }
-
-        if(count == 5) {
-            for(unsigned int i=0; i<count * 3; i++) {
-                uvs.push_back(glm::vec2(0,0));
-            }
-            continue;
-        }
-
-        std::vector<glm::vec2> vert_hexagon = {
-            glm::vec2(0.48f, 0.98f),
-            glm::vec2(0.02f, 1.0f - 35.0f/140.0f - 0.02f),
-            glm::vec2(0.02f, 1.0f - 104.0f/140.0f + 0.02f),
-            glm::vec2(0.48f, 0.02f),
-            glm::vec2(0.98f, 1.0f - 104.0f/140.0f + 0.02f),
-            glm::vec2(0.98f, 1.0f - 35.0f/140.0f - 0.02f)
-        };
-
-        for(unsigned int i=0; i<count; i++) {
-            uvs.push_back(glm::vec2(0.5f,0.5f));
-            uvs.push_back(vert_hexagon[(i)%6]);
-            uvs.push_back(vert_hexagon[(i+1)%6]);
+            colors.push_back(col);
         }
     }
     *nr = indices.size();
@@ -178,9 +158,9 @@ void Geometry::load_vertices_dual_gpu(GLuint* vao, GLuint* vbo, unsigned int *nr
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, 0);
 
     glBindBuffer(GL_ARRAY_BUFFER, vbo[2]);
-    glBufferData(GL_ARRAY_BUFFER, uvs.size() * 2 * sizeof(float), &uvs[0][0], GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, colors.size() * 3 * sizeof(float), &colors[0][0], GL_STATIC_DRAW);
     glEnableVertexAttribArray(2);
-    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0, 0);
+    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, 0);
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vbo[3]);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), &indices[0], GL_STATIC_DRAW);
@@ -199,7 +179,6 @@ void Geometry::load_vertices_dual_gpu(GLuint* vao, GLuint* vbo, unsigned int *nr
  */
 void Geometry::load_lines_dual_gpu(GLuint* vao, GLuint* vbo, unsigned int *nr) {
     std::vector<glm::vec3> verts;
-    std::vector<glm::vec2> uvs;
     std::vector<unsigned int> indices;
 
     for(auto&& vertex: vertices) {

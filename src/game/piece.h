@@ -1,14 +1,14 @@
 /**************************************************************************
- *   light.cpp  --  This file is part of Acardov.                         *
+ *   piece.h  --  This file is part of Acardov.                           *
  *                                                                        *
  *   Copyright (C) 2016, Ivo Filot                                        *
  *                                                                        *
- *   Netris is free software: you can redistribute it and/or modify       *
+ *   Acardov is free software: you can redistribute it and/or modify      *
  *   it under the terms of the GNU General Public License as published    *
  *   by the Free Software Foundation, either version 3 of the License,    *
  *   or (at your option) any later version.                               *
  *                                                                        *
- *   Netris is distributed in the hope that it will be useful,            *
+ *   Acardov is distributed in the hope that it will be useful,           *
  *   but WITHOUT ANY WARRANTY; without even the implied warranty          *
  *   of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.              *
  *   See the GNU General Public License for more details.                 *
@@ -18,12 +18,37 @@
  *                                                                        *
  **************************************************************************/
 
-#include "light.h"
+#ifndef _PIECE_H
+#define _PIECE_H
 
-Light::Light() {
-    this->position = glm::vec3(0,0,0);
-}
+#include "game/terrain/tile.h"
+#include "core/shader.h"
+#include "models/mesh.h"
+#include "util/mathfunc.h"
+#include "core/light.h"
 
-void Light::update() {
-    this->position = Camera::get().get_position();
-}
+class Piece {
+private:
+    std::vector<Mesh*> meshes;
+    const Tile* tile;
+    Shader* shader;
+    std::vector<glm::vec3> colors;
+
+public:
+    Piece(Shader* _shader);
+
+    void draw();
+
+    inline void add_mesh(Mesh* mesh, const glm::vec3& color) {
+        this->meshes.push_back(mesh);
+        this->colors.push_back(color);
+    }
+
+    inline void set_tile(const Tile* _tile) {
+        this->tile = _tile;
+    }
+
+private:
+};
+
+#endif // PIECE_H

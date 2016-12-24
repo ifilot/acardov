@@ -1,12 +1,9 @@
 #version 330 core
 
-in vec3 pos;
-in vec2 texcoord;
+in vec3 col;
 
 out vec4 outcol;
 
-uniform sampler2D text;
-
 void main() {
-    outcol = texture(text, texcoord);
+    outcol = vec4(col, 1.0);
 }

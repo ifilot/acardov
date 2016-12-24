@@ -68,6 +68,10 @@ public:
 
     void update(double dt);
 
+    inline const Tile* get_tile(unsigned int id) {
+        return this->tiles[id].get();
+    }
+
     ~Planet();
 
 private:

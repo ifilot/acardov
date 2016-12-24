@@ -24,6 +24,10 @@
 #include <eigen3/Eigen/Dense>
 #include <eigen3/Eigen/Sparse>
 
+#define GLM_FORCE_RADIANS
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+
 #include <boost/serialization/split_free.hpp>
 #include <boost/serialization/vector.hpp>
 
@@ -63,5 +67,9 @@ template <typename T>
 T clamp(const T& n, const T& lower, const T& upper) {
   return std::max(lower, std::min(n, upper));
 }
+
+glm::vec3 hex2col(const std::string& strhex);
+
+glm::mat4 get_rotation_matrix(const glm::vec3& v1, const glm::vec3& v2);
 
 #endif //_MATHFUNC_H

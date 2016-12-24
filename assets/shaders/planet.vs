@@ -2,14 +2,13 @@
 
 in vec3 position;
 in vec3 normal;
-in vec2 uv;
+in vec3 color;
 
-out vec3 pos;
-out vec2 texcoord;
+out vec3 col;
+
 uniform mat4 mvp;
 
 void main() {
-    pos = position;
-    texcoord = uv;
+    col = color;
     gl_Position = mvp * vec4(position, 1.0);
 }

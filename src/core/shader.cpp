@@ -108,7 +108,7 @@ void Shader::set_uniform(const std::string& name, const void* val) {
     // get uniform location in program
     const GLint id = glGetUniformLocation(this->m_program, name.c_str());
     if(id == -1) {
-        std::cerr << name << " does not correspond with a known uniform in this program." << std::endl;
+        std::cerr << "Variable \"" << name << "\" does not correspond with a known uniform in this program." << std::endl;
         exit(-1);
     }
 

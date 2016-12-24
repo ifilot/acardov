@@ -36,6 +36,7 @@
 #include <glm/gtx/string_cast.hpp>
 
 #include "game/terrain/tile.h"
+#include "util/mathfunc.h"
 
 class HalfEdge; // forward declaration
 

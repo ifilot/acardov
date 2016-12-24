@@ -200,8 +200,6 @@ Visualizer::Visualizer():
                                 32,             // start char
                                 222             // number of chars
                                 );
-
-    Planet::get();
 }
 
 /**
@@ -214,7 +212,8 @@ Visualizer::Visualizer():
  * @return Game class
  */
 void Visualizer::update(double dt) {
-    Planet::get().update(dt);
+    Game::get().update(dt);
+    Light::get().update();
 }
 
 void Visualizer::update_second() {
@@ -250,7 +249,7 @@ void Visualizer::pre_draw() {
  *
  */
 void Visualizer::draw() {
-    Planet::get().draw();
+    Game::get().draw();
     FontWriter::get().write_text(0, 50.f, 50.f, 0.f, glm::vec3(1,1,1), "Afelirin::Game Engine");
 }
 

@@ -21,7 +21,7 @@
 #include "planet.h"
 
 Planet::Planet() {
-    this->geometry = std::unique_ptr<Geometry>(new Geometry(5));
+    this->geometry = std::unique_ptr<Geometry>(new Geometry(4));
     this->geometry->load_vertices_dual_gpu(&this->vao_tiles, &this->vbo_tiles[0], &this->nr_vertices);
     this->geometry->load_lines_dual_gpu(&this->vao_lines, &this->vbo_lines[0], &this->nr_lines);
     this->geometry->load_tiles(&this->tiles);
@@ -40,8 +40,6 @@ void Planet::draw() {
 
     const glm::mat4 mvp_tiles = Camera::get().get_projection() * Camera::get().get_view();
     this->shader_tiles->set_uniform("mvp", &mvp_tiles[0][0]);
-    const unsigned int texture_slot = 0;
-    this->shader_tiles->set_uniform("text", &texture_slot);
 
     glBindVertexArray(this->vao_tiles);
     glDrawElements(GL_TRIANGLES, this->nr_vertices, GL_UNSIGNED_INT, 0);
@@ -76,9 +74,8 @@ void Planet::load_shaders() {
 
     this->shader_tiles->add_attribute(ShaderAttribute::POSITION, "position");
     this->shader_tiles->add_attribute(ShaderAttribute::NORMAL, "normal");
-    this->shader_tiles->add_attribute(ShaderAttribute::TEXTURE_COORDINATE, "uv");
+    this->shader_tiles->add_attribute(ShaderAttribute::COLOR, "color");
     this->shader_tiles->add_uniform(ShaderUniform::MAT4, "mvp", 1);
-    this->shader_tiles->add_uniform(ShaderUniform::TEXTURE, "text", 1);
 
     glBindVertexArray(this->vao_tiles);
     this->shader_tiles->bind_uniforms_and_attributes();
@@ -138,14 +135,14 @@ void Planet::set_poles() {
     glBindVertexArray(this->vao_tiles);
     glBindBuffer(GL_ARRAY_BUFFER, vbo_tiles[2]);
 
-    std::vector<glm::vec2> data;
+    std::vector<glm::vec3> data;
     for(unsigned int i=0; i<18; i++) {
-        data.push_back(glm::vec2(0,0));
+        data.push_back(hex2col("d2dadc"));
     }
 
     for(auto&& tile: tiles) {
-        if(std::abs(tile->get_pos()[2]) > 0.8f) {
-            glBufferSubData(GL_ARRAY_BUFFER, tile->get_memory_offset() * 6 * sizeof(float), tile->get_size() * 6 * sizeof(float), &data[0][0]);
+        if(std::abs(tile->get_pos()[2]) > 0.9f) {
+            glBufferSubData(GL_ARRAY_BUFFER, tile->get_memory_offset() * 9 * sizeof(float), tile->get_size() * 9 * sizeof(float), &data[0][0]);
         }
     }
 
