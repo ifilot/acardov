@@ -74,7 +74,7 @@ void Game::add_piece(unsigned int tile_id, unsigned int type) {
             this->pieces.back().add_mesh(this->meshes[2].get(), glm::vec3(1.0f, 0.5f, 0.5f));
         break;
         case 1:
-            this->pieces.back().add_mesh(this->meshes[1].get(), glm::vec3(0.1f, 0.1f, 0.1f));
+            this->pieces.back().add_mesh(this->meshes[1].get(), hex2col("f7a147"));
             this->pieces.back().add_mesh(this->meshes[3].get(), glm::vec3(0.0f, 0.0f, 0.0f));
         break;
     }

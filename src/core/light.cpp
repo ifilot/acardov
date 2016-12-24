@@ -25,5 +25,5 @@ Light::Light() {
 }
 
 void Light::update() {
-    this->position = Camera::get().get_position();
+    this->position = Camera::get().get_position() + Camera::get().get_right() * 2.0f;
 }

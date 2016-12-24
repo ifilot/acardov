@@ -3,5 +3,5 @@
 out vec4 outcol;
 
 void main() {
-    outcol = vec4(0,0,0,1);
+    outcol = vec4(0.0,0.0,0.0,0.1);
 }
